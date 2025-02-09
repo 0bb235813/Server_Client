@@ -1,7 +1,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <iostream>
-#include "unp.h"
+// #include "unp.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <signal.h>
 
 #pragma comment(lib, "ws2_32.lib")
 using namespace std;
@@ -36,12 +37,24 @@ void str_echo(int sockfd)
     }
 }
 
+void sig_chld(int signo)
+{
+    pid_t pid;
+    int stat;
+
+    // pid = wait(&stat);
+    while((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+        printf("child %d terminated\n", pid);
+    return;
+}
+
 int main()
 {
     int listenfd, connfd;
     pid_t childpid;
     socklen_t clilen;
     struct sockaddr_in cliaddr, servaddr;
+    // void sig_chld(int);
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero(&servaddr, sizeof(servaddr));
@@ -54,16 +67,20 @@ int main()
     bind(listenfd, (sockaddr*)&servaddr, sizeof(servaddr));
     cout << "listing" << endl; 
     listen(listenfd, 5);
+    signal(SIGCHLD, sig_chld);
 
     for(;;)
     {
         clilen = sizeof(cliaddr);
         cout << "accept()" << endl;
         if ( (connfd = accept(listenfd, (sockaddr*)&cliaddr, &clilen)) < 0) {
-            if (errno == EINTR)
-                continue;
-            else
-                cout << "accept error" << endl;
+            if (errno == EINTR) {
+                    cout << "EINTR" << endl;
+                    continue;
+                }
+                else
+                    cout << "accept error" << endl;
+                    return 0;
         }
         cout << "client connected" << endl;
         if ((childpid = fork()) == 0) {

@@ -39,19 +39,29 @@ void str_cli(FILE *fp, int sockfd)
 
 int main()
 {
-    int sockfd;
+    int sockfd[5];
     struct sockaddr_in servaddr;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    // sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(8888);
-    inet_pton(AF_INET, "192.168.120.218", &servaddr.sin_addr);
-    connect(sockfd, (sockaddr*)&servaddr, sizeof(servaddr));
+    // bzero(&servaddr, sizeof(servaddr));
+    // servaddr.sin_family = AF_INET;
+    // servaddr.sin_port = htons(8888);
+    // inet_pton(AF_INET, "192.168.54.218", &servaddr.sin_addr);
+    // connect(sockfd, (sockaddr*)&servaddr, sizeof(servaddr));
+    for(int i = 0; i < 5; i++) {
+        sockfd[i] = socket(AF_INET, SOCK_STREAM, 0);
+
+        bzero(&servaddr, sizeof(servaddr));
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_port = htons(8888);
+        inet_pton(AF_INET, "192.168.54.218", &servaddr.sin_addr);
+        
+        connect(sockfd[i], (sockaddr*)&servaddr, sizeof(servaddr));
+    }
     cout << "CONNECTED" << endl;
 
-    str_cli(stdin, sockfd);
+    str_cli(stdin, sockfd[0]);
 
     cout << "exit()" << endl;
     exit(0);

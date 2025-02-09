@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <iostream>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,14 +16,32 @@ typedef void Sigfunc(int);
 char *sock_ntop(const struct sockaddr *sa, socklen_t addrlen);
 ssize_t readn(int fd, void *vptr, size_t n);
 ssize_t writen(int fd, const void *vptr, size_t n);
-ssize_t readline(int fd, void *vptr, size_t maxlen);
+ssize_t readlineOneByte(int fd, void *vptr, size_t maxlen);
+static ssize_t my_read(int fd, char *ptr);
+ssize_t readline(int fd, void *ptr, size_t maxlen);
+ssize_t readlinebuf(void **vptrptr);
 void handler (int signo);
 Sigfunc *signal(int signo, Sigfunc *func);
 void sig_chld(int signo);
-
+void Listen(int fd, int backlog);
+static int read_cnt;
+static char *read_ptr;
+static char read_buf[128];
 
 // void (*signal(int signo, void (*func)(int)))(int);
 
+
+void Listen(int fd, int backlog)
+{
+    char *ptr;
+    if ((ptr = getenv("LISTENQ")) != NULL)
+        backlog = atoi(ptr);
+
+    if (listen(fd, backlog) < 0) {
+        std::cout << "listen error" << std::endl;
+        return;
+    }
+}
 
 char *sock_ntop(const struct sockaddr *sa, socklen_t addrlen)
 {
@@ -41,9 +60,10 @@ char *sock_ntop(const struct sockaddr *sa, socklen_t addrlen)
                 snprintf(portstr, sizeof(portstr), "%d", ntohs(sin->sin_port));
                 strcat(str, portstr);
             }
-            return str;
+            //// return str;
         }
     }
+    return str;
 }
 
 ssize_t readn(int fd, void *vptr, size_t n)
@@ -91,7 +111,7 @@ ssize_t writen(int fd, const void *vptr, size_t n)
     return n;
 }
 
-ssize_t readline(int fd, void *vptr, size_t maxlen)
+ssize_t readlineOneByte(int fd, void *vptr, size_t maxlen)
 {
     ssize_t n, rc;
     char c, *ptr;
@@ -102,21 +122,70 @@ ssize_t readline(int fd, void *vptr, size_t maxlen)
         again:
             if ( (rc = read(fd, &c, 1)) == 1){
                 * ptr++ = c;
-                if (c == '\en')
-                    break;
+                if (c == '\n')
+                    break;          /* Записан символ новой строки, как в fgets() */
             } else if (rc == 0) {
                 if (n == 1)
-                    return 0;
+                    return 0;       /* EOF, данные не считаны */
                 else
-                    break;
+                    break;          /* EOF, некоторые данные были считаны */
             } else {
+                if (errno == EINTR)
+                    goto again;
+                return -1;          /* ошибка, errno задается функцией read()*/
+            }
+    }
+    *ptr = 0;       /* завершаем нулем, как в fgets() */
+    return n;
+}
+
+static ssize_t my_read(int fd, char *ptr)
+{
+    if (read_cnt <= 0) {
+        again:
+            if ((read_cnt = read(fd, read_buf, sizeof(read_buf))) < 0) {
                 if (errno == EINTR)
                     goto again;
                 return -1;
             }
+            else if (read_cnt == 0)
+                return 0;
+            read_ptr = read_buf;
     }
+    read_cnt--;
+    *ptr = *read_ptr++;
+    return 1;
+}
+
+ssize_t readline(int fd, void *vptr, size_t maxlen)
+{
+    ssize_t n, rc;
+    char c, *ptr;
+
+    ptr = static_cast<char*>(vptr);
+    for (n = 1; n < maxlen; n++) {
+        if ((rc = my_read(fd, &c)) == 1) {
+            *ptr++ = c;
+            if (c == '\n')
+                break;
+        }
+        else if (rc == 0) {
+            *ptr = 0;
+            return n-1;
+        }
+        else
+            return -1;
+    }
+
     *ptr = 0;
     return n;
+}
+
+ssize_t readlinebuf(void **vptrptr)
+{
+    if (read_cnt)
+        *vptrptr = read_ptr;
+    return read_cnt;
 }
 
 Sigfunc *signal(int signo, Sigfunc *func)
