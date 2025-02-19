@@ -5,6 +5,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -13,6 +14,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <wait.h>
+#include <strings.h>
 
 #pragma comment(lib, "ws2_32.lib")
 using namespace std;
@@ -30,19 +33,23 @@ void str_echo(int sockfd)
             cout << "if()" << endl;
             return;
         }
-        cout << n << endl;
-        cout << "buf    " << buf;
+        buf[n] = '\0';
+        cout << "n:    " << n << endl;
+        cout << "buf:    " << buf << endl;
         cout << "write()" << endl;
         write(sockfd, buf, n);
+        cout << "/////////////////////////////////////////"<< endl;
     }
 }
 
 void sig_chld(int signo)
 {
+    cout << "sig_chld()" << endl;
     pid_t pid;
     int stat;
 
     // pid = wait(&stat);
+    // printf("child %d terminated\n", pid);
     while((pid = waitpid(-1, &stat, WNOHANG)) > 0)
         printf("child %d terminated\n", pid);
     return;
@@ -55,7 +62,7 @@ int main()
     socklen_t clilen;
     struct sockaddr_in cliaddr, servaddr;
     // void sig_chld(int);
-
+    //Hello World
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero(&servaddr, sizeof(servaddr));
     bzero(&cliaddr, sizeof(cliaddr));
