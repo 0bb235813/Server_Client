@@ -61,8 +61,6 @@ int main()
     pid_t childpid;
     socklen_t clilen;
     struct sockaddr_in cliaddr, servaddr;
-    // void sig_chld(int);
-    //Hello World
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero(&servaddr, sizeof(servaddr));
     bzero(&cliaddr, sizeof(cliaddr));
