@@ -22,42 +22,50 @@ void str_cli(FILE *fp, int sockfd)
 {
     cout << "str_cli" << endl;
     int n, maxfd;
-    char sendline[128], recvline[128];
+    bool stdineof = false;
+    char buf[128];
     fd_set rset;
 
     FD_ZERO(&rset);
     while (true) {
+        if (!stdineof)
+            FD_SET(fileno(fp), &rset);
         FD_SET(sockfd, &rset);
-        FD_SET(STDIN_FILENO, &rset);
         maxfd = max(sockfd, fileno(fp)) + 1;
         cout << "select()" << endl;
         select(maxfd, &rset, NULL, NULL, NULL);
 
         if (FD_ISSET(sockfd, &rset)) {
             cout << "read()" << endl;
-            if ((n = read(sockfd, recvline, sizeof(recvline))) <= 0) {
-                cout << "str_sli: server terminated prematurely" << endl;
-                return;
+            if ((n = read(sockfd, buf, sizeof(buf))) == 0) {
+                if (stdineof) {
+                    cout << "norm end" << endl;
+                    return;
+                }
+                else {
+                    cout << "str_sli: server terminated prematurely" << endl;
+                    return; 
+                }
             }
-            recvline[n] = '\0';
+            buf[n] = '\0';  //*
             cout << "n:    " << n << endl;
-            cout << "strlen:    " << strlen(recvline) << endl;
-            cout << "fputs():    ";
-            fputs(recvline, stdout);
+            cout << "strlen:    " << strlen(buf) << endl;
+            cout << "writeSTDOUT():    " << endl;
+            write(fileno(stdout), buf, strlen(buf));    //*
         }
 
-        if (FD_ISSET(STDIN_FILENO, &rset)) {
-            if (fgets(sendline, sizeof(sendline), fp) == NULL) {
-                cout << "errror or EOF" << endl;
-                return;
+        if (FD_ISSET(fileno(fp), &rset)) {
+            if ((n = read(fileno(fp), buf, sizeof(buf))) == 0) {
+                stdineof = true;
+                shutdown(sockfd, SHUT_WR);
+                FD_CLR(fileno(fp), &rset);
+                cout << "continue" << endl;
+                continue;
             }
-            cout << strlen(sendline) << endl;
-            cout << "sendline:    " << sendline << endl;
             cout << "write()" << endl;
-            write(sockfd, sendline, strlen(sendline)-1);
+            write(sockfd, buf, n-1);
         }
         cout << "\n/////////////////////////////////////////"<< endl;
-
     }
     cout << "exit str_cli()" << endl;
 }
